@@ -107,6 +107,61 @@ else:
 
 ## 可選優化
 
+### 建立最佳化 Modelfile（低記憶體機器專用）
+
+若機器只有 **16 GB 記憶體**（如 M4/16GB），9.7B 模型會讓記憶體吃緊導致速度慢。建立一個 context 縮小的專用模型可顯著改善：
+
+```bash
+cat > /tmp/ollama-hermes.Modelfile << 'EOF'
+FROM oamazonasgabriel/qwen3.5-9b:q4-16gbGPU
+PARAMETER num_ctx 16384
+PARAMETER num_batch 512
+PARAMETER num_gpu 99
+EOF
+
+ollama create hermes-qwen -f /tmp/ollama-hermes.Modelfile
+```
+
+然後在 `config.yaml` 加入對應的 custom provider：
+
+```bash
+cd "$(hermes config path | xargs dirname)" && python3 -c "
+import yaml
+with open('config.yaml') as f:
+    config = yaml.safe_load(f)
+
+provider = {
+    'name': 'hermes-qwen',
+    'base_url': 'http://127.0.0.1:11434/v1',
+    'model': 'hermes-qwen',
+    'models': {
+        'hermes-qwen': {
+            'context_length': 16384
+        }
+    }
+}
+
+existing_names = [p['name'] for p in config.get('custom_providers', [])]
+if provider['name'] not in existing_names:
+    config.setdefault('custom_providers', []).append(provider)
+    with open('config.yaml', 'w') as f:
+        yaml.dump(config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    print('✅ Added')
+else:
+    print('⚠️  Exists')
+"
+```
+
+切換：
+
+```
+/model hermes-qwen
+```
+
+**原理**：KV cache 大小與 context length 成正比。16384 比原始的 262144 省下約 **16 倍**的 GPU 記憶體，減少 swap 大幅提升速度。
+
+> ⚠️ 若 Hermes session 中 context 接近 16384 tokens，需壓縮（`/compress`）或開新 session。
+
 ### 保持模型常駐記憶體
 
 ```bash
