@@ -104,3 +104,40 @@ hermes gateway status
 - 正式使用前建議關閉 `TELEGRAM_ALLOW_ALL_USERS`
 - Gateway logs 位於 `~/hermes/logs/gateway.log` 和 `~/hermes/logs/errors.log`
 - 修改 config/.env 後需要重啟 gateway 才能生效
+
+---
+
+## 在其他機台安裝此 Skill
+
+此 skill 已發布於 GitHub：
+
+```
+https://github.com/fordsupr/HermesSkills.git
+```
+
+### 方式 1：直接 URL 安裝（最簡單）
+
+```bash
+hermes skills install \
+  https://raw.githubusercontent.com/fordsupr/HermesSkills/main/skills/hermes/telegram-gateway-setup/SKILL.md
+```
+
+### 方式 2：加入為 Tap 來源（方便日後更新）
+
+```bash
+# 加入 GitHub repo 作為 skill 來源
+hermes skills tap add https://github.com/fordsupr/HermesSkills.git
+
+# 安裝 skill
+hermes skills install telegram-gateway-setup
+```
+
+### 更新 Skill
+
+當來源 repo 有更新時，其他機台只需執行：
+
+```bash
+hermes skills update
+```
+
+即可自動同步最新版本。
