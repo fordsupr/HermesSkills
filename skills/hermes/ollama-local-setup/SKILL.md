@@ -21,6 +21,20 @@ metadata:
 
 ## 步驟
 
+### 0. 拉取固定模型（各機通用）
+
+此組織使用的 Ollama 模型為固定版本，在所有機器上一致：
+
+```bash
+ollama pull oamazonasgabriel/qwen3.5-9b:q4-16gbGPU
+```
+
+模型規格：
+- **參數量**：9.7B
+- **量化**：Q4_K_M
+- **Context Length**：262,144 tokens
+- **支援能力**：vision, completion, tools (function calling), thinking
+
 ### 1. 確認 Ollama 模型清單
 
 ```bash
@@ -45,7 +59,7 @@ curl -s http://127.0.0.1:11434/v1/chat/completions \
 
 ### 3. 加入 custom provider 到 config.yaml
 
-使用 Python 寫入（安全方式，繞過 Hermes 安全守衛對 config 的保護）：
+使用 Python 寫入（安全方式，繞過 Hermes 安全守衛對 config 的保護）。以下為固定模型的預設值：
 
 ```bash
 cd "$(hermes config path | xargs dirname)" && python3 -c "
@@ -54,12 +68,12 @@ with open('config.yaml') as f:
     config = yaml.safe_load(f)
 
 provider = {
-    'name': 'Ollama-<ModelNickname>',
+    'name': 'Ollama-Qwen3.5-9B',
     'base_url': 'http://127.0.0.1:11434/v1',
-    'model': '<YOUR_MODEL_NAME>',
+    'model': 'oamazonasgabriel/qwen3.5-9b:q4-16gbGPU',
     'models': {
-        '<YOUR_MODEL_NAME>': {
-            'context_length': <CONTEXT_LENGTH>  # 取自 Ollama API 回應中的 details.context_length
+        'oamazonasgabriel/qwen3.5-9b:q4-16gbGPU': {
+            'context_length': 262144
         }
     }
 }
@@ -75,18 +89,20 @@ else:
 "
 ```
 
+> 💡 若使用其他模型，請自行替換 `name`、`model` 及 `context_length`（可從 `curl /api/tags` 的 `details.context_length` 取得）。
+
 ### 4. 切換使用
 
 在 Hermes session 中：
 
 ```
-/model Ollama-<ModelNickname>
+/model Ollama-Qwen3.5-9B
 ```
 
 切回原本的 provider：
 
 ```
-/model <original-model-name>
+/model deepseek-v4-flash
 ```
 
 ## 可選優化
@@ -95,7 +111,7 @@ else:
 
 ```bash
 curl http://127.0.0.1:11434/api/generate \
-  -d '{"model": "<YOUR_MODEL_NAME>", "keep_alive": "24h"}'
+  -d '{"model": "oamazonasgabriel/qwen3.5-9b:q4-16gbGPU", "keep_alive": "24h"}'
 ```
 
 ### 調大 API 逾時（給慢速本地模型）
