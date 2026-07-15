@@ -141,3 +141,41 @@ hermes skills update
 ```
 
 即可自動同步最新版本。
+
+---
+
+## 在其他機台執行此 Skill
+
+### 載入 Skill
+
+安裝後，有兩種方式載入：
+
+```bash
+# 方式 A：啟動時直接載入
+hermes -s telegram-gateway-setup
+
+# 方式 B：已在對話中，用斜線指令載入
+/skill telegram-gateway-setup
+```
+
+### 啟動設定流程
+
+載入後，直接告訴 Hermes：
+
+> 請幫我設定 Telegram Gateway
+
+Hermes 會依 skill 的步驟引導你完成：
+1. 去 @BotFather 建立 Bot 並取得 Token
+2. 去 @userinfobot 取得你的數字 User ID
+3. 自動寫入 `.env` 設定檔
+4. 設定模型（建議切換至雲端 provider）
+5. 啟動 Gateway（`hermes gateway start`）
+6. 驗證連線狀態
+
+### 一行搞定（已有 Token 和 User ID）
+
+如果你已經準備好 Token 和 User ID，可以直接一次完成：
+
+> 載入 telegram-gateway-setup skill，我的 Bot Token 是 `123456:ABC-def`，User ID 是 `7544189719`，幫我設定 Telegram Gateway
+
+Hermes 會自動完成所有設定步驟，無需逐項引導。
