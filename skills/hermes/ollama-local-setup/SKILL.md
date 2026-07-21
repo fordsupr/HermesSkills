@@ -107,18 +107,22 @@ else:
 
 ## 可選優化
 
-### 建立最佳化 Modelfile（低記憶體機器專用）
+### 建立最佳化 Modelfile（16GB 記憶體機器專用）
 
-若機器只有 **16 GB 記憶體**（如 M4/16GB），9.7B 模型會讓記憶體吃緊導致速度慢。建立一個 context 縮小的專用模型可顯著改善：
+若機器只有 **16 GB 記憶體**（如 M4/16GB），9.7B 模型需要平衡記憶體與功能。Hermes 工具使用需要至少 **64,000 tokens** 的 context，但過大的 context 會導致 swap 變慢。
+
+建立一個 context 適中的專用模型：
 
 ```bash
 cat > /tmp/ollama-hermes.Modelfile << 'EOF'
 FROM oamazonasgabriel/qwen3.5-9b:q4-16gbGPU
-PARAMETER num_ctx 16384
+PARAMETER num_ctx 65536
 PARAMETER num_batch 512
 PARAMETER num_gpu 99
 EOF
 
+# 若已存在先移除再重建
+ollama rm hermes-qwen 2>/dev/null || true
 ollama create hermes-qwen -f /tmp/ollama-hermes.Modelfile
 ```
 
@@ -136,7 +140,7 @@ provider = {
     'model': 'hermes-qwen',
     'models': {
         'hermes-qwen': {
-            'context_length': 16384
+            'context_length': 65536
         }
     }
 }
@@ -158,9 +162,9 @@ else:
 /model hermes-qwen
 ```
 
-**原理**：KV cache 大小與 context length 成正比。16384 比原始的 262144 省下約 **16 倍**的 GPU 記憶體，減少 swap 大幅提升速度。
+**原理**：原始 Modelfile 預設 `num_ctx 32768`（低於 Hermes 工具使用門檻 64K）。提升到 **65536** 滿足 Hermes 需求，同時在 16GB 機器上仍可運作（約 15-16 tok/s）。若連 65536 都卡頓，可試降到 `49152` 但部分 Telegram 工具功能可能受限。
 
-> ⚠️ 若 Hermes session 中 context 接近 16384 tokens，需壓縮（`/compress`）或開新 session。
+> ⚠️ 65K context 在 16GB M4 上約佔 ~12-14GB 記憶體（含模型權重），可能仍有輕微 swap。關閉瀏覽器 / VS Code / Teams 等大程式可釋放更多記憶體。
 
 ### 保持模型常駐記憶體
 
