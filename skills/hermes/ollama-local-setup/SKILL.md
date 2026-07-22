@@ -116,8 +116,8 @@ else:
 ```bash
 cat > /tmp/ollama-hermes.Modelfile << 'EOF'
 FROM oamazonasgabriel/qwen3.5-9b:q4-16gbGPU
-PARAMETER num_ctx 65536
-PARAMETER num_batch 512
+PARAMETER num_ctx 49152
+PARAMETER num_batch 256
 PARAMETER num_gpu 99
 EOF
 
@@ -140,7 +140,7 @@ provider = {
     'model': 'hermes-qwen',
     'models': {
         'hermes-qwen': {
-            'context_length': 65536
+            'context_length': 49152
         }
     }
 }
@@ -162,9 +162,9 @@ else:
 /model hermes-qwen
 ```
 
-**原理**：原始 Modelfile 預設 `num_ctx 32768`（低於 Hermes 工具使用門檻 64K）。提升到 **65536** 滿足 Hermes 需求，同時在 16GB 機器上仍可運作（約 15-16 tok/s）。若連 65536 都卡頓，可試降到 `49152` 但部分 Telegram 工具功能可能受限。
+**原理**：原始 Modelfile 預設 `num_ctx 32768`（低於 Hermes 工具使用門檻）。提升到 **49152（48K）** 在 16GB M4 上 KV cache 約 9.6GB，總佔用約 16.2GB 勉強可塞進。速度約 15-16 tok/s。
 
-> ⚠️ 65K context 在 16GB M4 上約佔 ~12-14GB 記憶體（含模型權重），可能仍有輕微 swap。關閉瀏覽器 / VS Code / Teams 等大程式可釋放更多記憶體。
+> ⚠️ 若 48K 仍不夠或太卡，可試再降到 `40960`（40K）或改用較小模型如 `qwen3.5:7b`。
 
 ### 保持模型常駐記憶體
 
