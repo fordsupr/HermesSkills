@@ -1,7 +1,7 @@
 ---
 name: hermes-macos-install
 description: "在全新 macOS (Apple Silicon) 上完整安裝 Hermes Agent，含 DeepSeek provider、自訂 provider、Telegram gateway、外接卷宗配置，目錄結構與本機一致"
-version: 1.0.0
+version: 1.1.0
 author: Jason Li
 platforms: [macos]
 metadata:
@@ -71,12 +71,12 @@ curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
 installer 會：
 1. 安裝 `uv`
 2. 下載 hermes-agent 原始碼到 `$HERMES_HOME/hermes-agent/`
-3. 建立 Python 虛擬環境 `.venv`（Python 3.11）
+3. 建立 Python 虛擬環境 `venv`（Python 3.11）
 4. 放置 `hermes` launcher 到 `~/.local/bin/`
 
 ```bash
 # 驗證
-ls "$HERMES_HOME/hermes-agent/.venv/bin/python" && ~/.local/bin/hermes --version
+ls "$HERMES_HOME/hermes-agent/venv/bin/python" && ~/.local/bin/hermes --version
 ```
 
 ---
@@ -230,14 +230,79 @@ HERMES_TELEGRAM_HOME_CHANNEL_ID=8828553500
 
 > `ALLOWED_USERS` 必須是**數值 user ID**（非 @username），可透過 [@userinfobot](https://t.me/userinfobot) 查詢。
 
-### 6.3 啟動 Gateway
+### 6.3 gateway 啟停（手動，不開機自啟）
+
+本專案刻意**不裝 launchd 自啟**，改用三支手動腳本管理 gateway。
+把腳本放到 `$HERMES_HOME` 根目錄：
+
+`hermes-start.sh`：
+```bash
+#!/bin/bash
+# 手動啟動 Hermes gateway（背景執行）
+set -e
+export HERMES_HOME="$(cd "$(dirname "$0")" && pwd)"
+cd "$HERMES_HOME"
+
+if pgrep -f "hermes_cli.main gateway run" >/dev/null; then
+    echo "Hermes gateway 已在執行中 (PID $(pgrep -f 'hermes_cli.main gateway run' | tr '\n' ' '))"
+    exit 0
+fi
+
+LOG="$HOME/Library/Logs/hermes-gateway.log"
+nohup hermes-agent/venv/bin/python -m hermes_cli.main gateway run --replace \
+    >>"$LOG" 2>&1 &
+
+echo "Hermes gateway 已啟動 (PID $!)"
+echo "log: $LOG"
+```
+
+`hermes-stop.sh`：
+```bash
+#!/bin/bash
+# 手動停止 Hermes gateway
+PATTERN="hermes_cli.main gateway run"
+
+if ! pgrep -f "$PATTERN" >/dev/null; then
+    echo "Hermes gateway 沒在執行"
+    exit 0
+fi
+
+pkill -f "$PATTERN"
+for _ in $(seq 10); do
+    pgrep -f "$PATTERN" >/dev/null || { echo "Hermes gateway 已停止"; exit 0; }
+    sleep 1
+done
+
+# 10 秒還沒退才 -9，正常關閉走 SIGTERM 讓它自己收尾
+pkill -9 -f "$PATTERN"
+echo "Hermes gateway 已強制停止 (SIGKILL)"
+```
+
+`hermes-restart.sh`：
+```bash
+#!/bin/bash
+# 重啟 Hermes gateway
+DIR="$(cd "$(dirname "$0")" && pwd)"
+"$DIR/hermes-stop.sh" && "$DIR/hermes-start.sh"
+```
+
+用法（腳本用 `dirname $0` 自己推導 `HERMES_HOME`，換機不必改）：
 
 ```bash
-hermes gateway run        # 前台（測試用）
-hermes gateway install    # 安裝為背景服務
-hermes gateway start      # 啟動服務
-hermes gateway status     # 檢查狀態
+chmod +x "$HERMES_HOME"/hermes-*.sh
+cd "$HERMES_HOME"
+./hermes-start.sh      # 背景啟動，重複啟動會被擋
+./hermes-stop.sh       # SIGTERM，10 秒不退才 SIGKILL
+./hermes-restart.sh    # stop && start
 ```
+
+- log：`~/Library/Logs/hermes-gateway.log`
+- 查狀態：`pgrep -f "hermes_cli.main gateway run"`
+
+> **為何不裝 launchd 自啟？** `$HERMES_HOME` 在外接卷宗 `/Volumes/projectWrk`，
+> 登入時若尚未掛載，launchd 的 `RunAtLoad` 會直接失敗。真要自啟：
+> `hermes gateway install`（產生 `~/Library/LaunchAgents/ai.hermes.gateway.plist`，
+> 含 `RunAtLoad` + `KeepAlive`），移除用 `hermes gateway uninstall`。
 
 ---
 
@@ -287,7 +352,7 @@ echo "=== uv ==="
 "$HERMES_HOME/bin/uv" --version
 
 echo "=== Python (venv) ==="
-"$HERMES_HOME/hermes-agent/.venv/bin/python" --version
+"$HERMES_HOME/hermes-agent/venv/bin/python" --version
 # 必須是 3.11.x ~ 3.13.x（勿用 3.14）
 
 echo "=== Config ==="
@@ -328,7 +393,7 @@ $HERMES_HOME/
 ├── state.db               ← 會話資料庫
 ├── projects.db            ← 專案資料庫
 ├── hermes-agent/          ← 原始碼 + venv
-│   ├── .venv/
+│   ├── venv/
 │   └── ...
 ├── bin/
 │   ├── uv                 ← Python 套件管理器
@@ -389,7 +454,7 @@ $HERMES_HOME/
 | 編輯 config | `hermes config edit` |
 | 健康檢查 | `hermes doctor` |
 | 狀態總覽 | `hermes status` |
-| 啟動 gateway | `hermes gateway start` |
+| 啟動 gateway | `./hermes-start.sh`（停止 `./hermes-stop.sh`、重啟 `./hermes-restart.sh`） |
 | 安裝 skill | `hermes skills install <name>` |
 | 瀏覽 skills | `hermes skills browse` |
 | 加入 skills repo | `hermes skills tap add <url>` |
